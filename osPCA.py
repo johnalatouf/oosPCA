@@ -59,6 +59,15 @@ def angle_between(v1, v2):
     v1_u = unit_vector(v1)
     v2_u = unit_vector(v2)
     return np.arccos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0))
+    
+# calculate the score of outlierness by given two vector
+def calculate_outlier_score(a, b):
+	"""Takes 2 vectors a, b and returns the score of outlierness
+	"""
+	dot_product = np.dot(a, b)
+	norm_a = np.linalg.norm(a)
+	norm_b = np.linalg.norm(b)
+	return 1 - abs(dot_product / (norm_a * norm_b))
 
 if __name__ == "__main__":
     # path = sys.argv[1]
