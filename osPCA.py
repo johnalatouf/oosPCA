@@ -5,6 +5,7 @@ import pandas as pd
 import numpy as np
 import sys
 from sklearn.preprocessing import StandardScaler
+from imblearn.ensemble import EasyEnsemble
 
 # reads the file specified by path and returns dataframe
 def read_data_file(path):
@@ -69,6 +70,65 @@ def calculate_outlier_score(a, b):
 	norm_b = np.linalg.norm(b)
 	return 1 - abs(dot_product / (norm_a * norm_b))
 
+#return  
+def pca_algorithm(df, target):
+    # drop the target from the dataframe
+    df_data = df.drop(target, axis=1)
+
+    x = df_data.values
+    y = df[target].values
+    X_std = StandardScaler().fit_transform(x)
+
+    # get the mean vector
+    mean_vec = np.mean(X_std, axis=0)
+
+    # get the covariance matrix
+    cov_mat = np.cov(X_std.T)
+
+    # get the eigenvec and eigenval
+    eig_vals, eig_vecs = np.linalg.eig(cov_mat)
+
+    # singlular vector decomposition
+    u, s, v = np.linalg.svd(X_std.T)
+
+    # make a list of (eigenvalue, eigenvector) tuples
+    eig_pairs = [(np.abs(eig_vals[i]), eig_vecs[:, i]) for i in range(len(eig_vals))]
+
+    # sort the (eigenvalue, eigenvector) tuples from high to low
+    eig_pairs.sort()
+    eig_pairs.reverse()
+
+    tot = sum(eig_vals)
+    var_exp = [(i / tot) * 100 for i in sorted(eig_vals, reverse=True)]
+    cum_var_exp = np.cumsum(var_exp)
+
+    # choose the top two eiganvectors to go from 4d to 2d
+    matrix_w = np.hstack((eig_pairs[0][1].reshape(4, 1), eig_pairs[1][1].reshape(4, 1)))
+    
+    #threshold
+    varRetained = 0.95
+    #return eig_pairs[0][1]
+    k = len(var_i[var_i < (varRetained * 100)])
+    #check threshold 
+    if self.calculate_outlier_score(eigvec, eigvec2) < varRetained :
+        # compute the reduced dimensional features by projction        
+        U_reduced = u[:, : k]
+        Z = np.transpose(U_reduced) * X
+
+    return Z, U_reduced
+
+#random over-sampling function
+def random_oversampling(df):
+    # drop the target from the dataframe
+    df_data = df.drop(target, axis=1)
+
+    x = df_data.values
+    y = df[target].values
+    
+    # creates an ensemble of data set by randomly under-sampling the original set
+    ee = EasyEnsemble(random_state=0, n_subsets=10)
+    X_resampled, y_resampled = ee.fit_sample(x, y)
+
 if __name__ == "__main__":
     # path = sys.argv[1]
     # target = sys.argv[2]
@@ -96,3 +156,6 @@ if __name__ == "__main__":
     angle =  angle_between(eigvec, eigvec2)
     print angle
     print np.rad2deg(angle)
+    
+    
+        
