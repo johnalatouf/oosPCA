@@ -88,13 +88,14 @@ def calculate_outlier_score(a, b):
 	norm_b = np.linalg.norm(b)
 	return 1 - abs(dot_product / (norm_a * norm_b))
 
-# calculate the standdev of an array 
+# calculate the mean and standdev of an array 
 #and detect a points(its projected coefficient onto this eigenvector) with this threshold
 def calculate_thredshold(array, point):
     """
     Takes an array of the normal data instances projected onto the dominant eigenvector
     reject the outlier points by eliminating any points that were above (Mean + 2*SD) 
-    and any points below (Mean - 2*SD) before plotting the frequencies	
+    and any points below (Mean - 2*SD) before plotting the frequencies
+    return boolean outlier as true or false 
     """
     outlier = None
     elements = numpy.array(array)
