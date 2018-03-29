@@ -46,22 +46,32 @@ def pca_vector(df, target):
     # print eig_pairs
 
     # sort the (eigenvalue, eigenvector) tuples from high to low
-    # TODO - this causes an error with the KDD data for no reason that I can determine
+    # TODO - sort gets a weird error with KDD data so find the largest val the manual way
     # eig_pairs.sort()
     # eig_pairs.reverse()
 
-    tot = sum(eig_vals)
+    # lets just get the biggest pair this way
+    eig_val_highest = eig_pairs[0][0]
+    eig_dominant = eig_pairs[0][1]
+    for e in eig_pairs:
+        if e[0] > eig_val_highest:
+            eig_val_highest = e[0]
+            eig_dominant = e[1]
+
+    # tot = sum(eig_vals)
     # var_exp = [(i / tot) * 100 for i in sorted(eig_vals, reverse=True)]
     # cum_var_exp = np.cumsum(var_exp)
 
     # choose the top two eiganvectors to go from 4d to 2d
     # matrix_w = np.hstack((eig_pairs[0][1].reshape(4, 1), eig_pairs[1][1].reshape(4, 1)))
 
-    return eig_pairs[0][1]
+    # return eig_pairs[0][1]
+    return eig_dominant
 
 # borrowed from here: https://stackoverflow.com/questions/2827393/angles-between-two-n-dimensional-vectors-in-python/13849249#13849249
 def unit_vector(vector):
     return vector / np.linalg.norm(vector)
+
 
 # returns the radian difference between angles
 def angle_between(v1, v2):
@@ -172,12 +182,41 @@ def check_points(df, eigvec, target):
         new_eigvec = pca_vector(df_to_test, target)
         outlier_score = calculate_outlier_score(eigvec, new_eigvec)
         scores.append([outlier_score, point[target]])
-        print "score: %s, class: %s" % (outlier_score, point[target])
+        # print "score: %s, class: %s" % (outlier_score, point[target])
         df_to_test = df.copy()
     sc = pd.DataFrame(scores)
     print len(sc)
     return sc
 
+# duplicate point by 10%, add to the cluster, check the eigenvalue
+# pandas iterrows is terrible and this can probably be done better using apply()
+def check_point(row, df, eigvec, target):
+
+    scores = []
+    df_to_test = df.copy()
+    ten_percent = int(len(df)*0.1)
+
+
+    pointlist = list(repeat(row.tolist(), ten_percent))
+    df_point = pd.DataFrame(data=pointlist, columns=df.columns)
+    df_to_test = pd.concat([df_to_test, df_point])
+
+    new_eigvec = pca_vector(df_to_test, target)
+    # TODO - this is the real one
+    outlier_score = calculate_outlier_score(eigvec, new_eigvec)
+    # outlier_score = angle_between(eigvec, new_eigvec)
+
+    scores.append([outlier_score, row[target]])
+    # print "score: %s, class: %s" % (outlier_score, point[target])
+    # TODO - there's more to the outlier score
+    print outlier_score
+    return outlier_score
+
+
+def testingrow(row, df):
+    print row
+    print row["protocol_type"]
+    print len(df)
 
 
 if __name__ == "__main__":
@@ -187,45 +226,97 @@ if __name__ == "__main__":
     # # read the dataframe
     # df = read_data_file(path)
 
+    # read the total lines, but only work with the first ~2000 normal points
+
     # df = pd.read_csv(filepath_or_buffer='data/kddcup.data_10_percent',
     #                  header=None,
-    #                  sep=',')
+    #                  sep=',', nrows=50000)
 
     df = pd.read_csv(filepath_or_buffer='data/kddcup5000.csv',
                      header=None,
                      sep=',')
+    #
+    # df.to_csv("kddcup50000.csv")
 
-    # df.to_csv("kdd5000.csv", index=False, header=False)
+    print len(df)
 
-    #df.columns = ['sepal_len', 'sepal_wid', 'petal_len', 'petal_wid', 'class']
+    # read in the first 5000 lines
+    # df = pd.read_csv(filepath_or_buffer='data/kddcup5000.csv',
+    #                  header=None,
+    #                  sep=',')
+
+
     #add the headers so it is easier to work with
     df.columns, continuous, symbolic = names_to_col.make_col("data/kddcup.names")
     df.dropna(how="all", inplace=True)  # drops the empty line at file-end
 
+    train_size = int(len(df) * 0.1)
+    df_train = df.drop(df.index[[0, train_size]])
+    df_test = df.drop(df.index[-train_size])
+    # print df_test
+    # print df_test
+
+
     # in this instance, there are no headers so grab the last column as class
-    # target=len(df.columns) - 1
     target = "class"
+    target_normal = "normal."
+    categorizedby = "protocol_type"
 
-    # eigvec =  pca_vector(df, target)
-    # print eigvec
 
-    # df_more = df[df["class"] == "Iris-setosa"]
-    # df_extra = pd.concat([df, df_more], ignore_index=True)
 
-    # categorize by protocol type
-    clusters, eigvecs = categorize_data(df, continuous, symbolic, "protocol_type")
+    # drop outliers from the training data
+    df_train = df_train[df_train[target] == target_normal]
+
+
+    # categorize by protocol type and get the clusters and their eigvectors
+    clusters, eigvecs = categorize_data(df_train, continuous, symbolic, categorizedby)
+
     outlier_scores = pd.DataFrame()
-    for key,val in clusters.items():
-        outlier_scores = pd.concat([outlier_scores, check_points(val, eigvecs[key], target)])
+
+    # TODO - do this differently
+
+    # for each row in testing data, compute an outlier
+    # test against same protocol
+    print eigvecs.keys()
+    # print df_test[categorizedby].unique()
+    # print df_test
+    # df_test.apply(testingrow, args = (df_train,), axis=1)
+    # TODO - this is the good part
+
+    # categorize the test data
+    df_tests = {}
+    for cat in df_test[categorizedby].unique():
+        print cat
+        df_tests[cat] = df_test[df_test[categorizedby] == cat]
+        df_tests[cat].drop(symbolic, axis=1, inplace=True)
+
+        df_tests[cat]['outlier_score'] = df_tests[cat].apply((lambda x: check_point(x,clusters[cat], eigvecs[cat], target)), axis=1)
+
+
+        # print out some results to a csv
+        # print df_tests[cat]
+        csvname = "kdd_outlier_scores_%s" % cat
+        df_tests[cat].to_csv(csvname)
+
+        #testing the results
+        df_outlier = df_tests[cat][df_tests[cat][target] != "normal."]
+        df_normal = df_tests[cat][df_tests[cat][target] == "normal."]
+        print len(df_normal)
+        print len (df_outlier)
+        print "%s normal difference in dot product mean: %s" % (cat, (df_normal["outlier_score"].mean()))
+        print "%s outlier difference in dot product mean: %s" % (cat, (df_outlier["outlier_score"].mean()))
+
+    # for key,val in clusters.items():
+    #     outlier_scores = pd.concat([outlier_scores, check_points(val, eigvecs[key], target)])
 
     # a way to print these and read them
-    outlier_scores.to_csv("output.csv")
-
-    outlier_scores_normal = outlier_scores[outlier_scores[1] == "normal."]
-    outlier_scores_outlier = outlier_scores[outlier_scores[1] != "normal."]
-
-    print "normal %s" % outlier_scores_normal[0].mean()
-    print "outliers %s" % outlier_scores_outlier[0].mean()
+    # outlier_scores.to_csv("output.csv")
+    #
+    # outlier_scores_normal = outlier_scores[outlier_scores[1] == "normal."]
+    # outlier_scores_outlier = outlier_scores[outlier_scores[1] != "normal."]
+    #
+    # print "normal %s" % outlier_scores_normal[0].mean()
+    # print "outliers %s" % outlier_scores_outlier[0].mean()
 
     # eigvec2 = pca_vector(df_extra, target)
     # print eigvec2
