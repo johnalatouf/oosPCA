@@ -89,7 +89,7 @@ def calculate_outlier_score(a, b):
 
 # calculate the mean and standdev of an array 
 #and detect a points(its projected coefficient onto this eigenvector) with this threshold
-def calculate_thredshold(array, point):
+def calculate_thredshold(array):
     """
     Takes an array of the normal data instances projected onto the dominant eigenvector
     reject the outlier points by eliminating any points that were above (Mean + 2*SD) 
@@ -102,9 +102,21 @@ def calculate_thredshold(array, point):
     mean = np.mean(elements, axis=0)
     sd = np.std(elements, axis=0)
 
-    if (point < mean - 2 * sd) or (point > mean + 2 * sd) :
+    # TODO - I'm going to move this so that a mean can be determined ahead of time and
+    # we just have to calculate it once, then check the point in another function later
+    # if (point < mean - 2 * sd) or (point > mean + 2 * sd) :
+    #     outlier = True
+    # #print (outlier)
+    # return outlier
+    return mean, sd
+
+
+# check the point against the threshold
+def check_threshold(mean, sd, point):
+    outlier = None
+    if (point < mean - 2 * sd) or (point > mean + 2 * sd):
         outlier = True
-    #print (outlier)
+    # print (outlier)
     return outlier
 
 # pick out the groups to test based on symbolic data
@@ -113,42 +125,27 @@ def categorize_data(df, continuous_headers, symbolic_headers, categorize_by):
     # for each in the category
     dataframes = {}
     eig_vecs = {}
+    outlier_scores = {}
     for category in  df[categorize_by].unique():
         df_cat = df[df[categorize_by] == category]              # only use this value in category
         # TODO - I believe we can keep binary symbolic headers, but I'm not sure how to handle them yet
         df_cat.drop(symbolic_headers, axis=1, inplace=True)     # drop symbolic headers
         dataframes[category] = df_cat
         eig_vecs[category] = pca_vector(df_cat, target)
-    return dataframes, eig_vecs
+
+        # we need to get mean outlier scores for all normal training data
+        # to use for computing mean and sd for threshold testing
+        df_cat['outlier_score'] = df_cat.apply(
+            (lambda x: outlier_point(x, df_cat, eig_vecs[category], target)), axis=1)
+        outlier_scores[category] = df_cat['outlier_score'].tolist()
+        df_cat.drop('outlier_score', axis=1, inplace=True)
+    return dataframes, eig_vecs, outlier_scores
 
 
-# duplicate point by 10%, add to the cluster, check the eigenvalue
-# pandas iterrows is terrible and this can probably be done better using apply()
-def check_points(df, eigvec, target):
-    scores = []
-    df_to_test = df.copy()
-    ten_percent = int(len(df)*0.1)
-    print ten_percent
-    for idx, point in df.iterrows():
-
-        # make a list of 10% copies of this point and concat it to the test data
-        pointlist = list(repeat(point.tolist(), ten_percent))
-        df_point = pd.DataFrame(data=pointlist, columns=df.columns)
-        df_to_test = pd.concat([df_to_test, df_point])
-
-        new_eigvec = pca_vector(df_to_test, target)
-        outlier_score = calculate_outlier_score(eigvec, new_eigvec)
-        scores.append([outlier_score, point[target]])
-        # print "score: %s, class: %s" % (outlier_score, point[target])
-        df_to_test = df.copy()
-    sc = pd.DataFrame(scores)
-    print len(sc)
-    return sc
-
-# duplicate point by 10%, add to the cluster, check the eigenvalue
-# pandas iterrows is terrible and this can probably be done better using apply()
-def check_point(row, df, eigvec, target):
-
+# duplicate point by 10%, add to the cluster, check the eigenvalue outlier score
+# test the outlier score against the normal mean and sd scores to detect outlier
+# returns outlier score and outlier true/false
+def check_point(row, df, eigvec, target, normal_mean, normal_sd):
     scores = []
     df_to_test = df.copy()
     ten_percent = int(len(df)*0.1)
@@ -166,6 +163,29 @@ def check_point(row, df, eigvec, target):
     scores.append([outlier_score, row[target]])
     # print "score: %s, class: %s" % (outlier_score, point[target])
     # TODO - there's more to the outlier score
+    outlier_classification = check_threshold(normal_mean, normal_sd, outlier_score)
+    print "score: %s, classification: %s" % (outlier_score, outlier_classification)
+    return outlier_score, outlier_classification
+
+# duplicate point by 10%, add to the cluster, check the eigenvalue for outlier score
+def outlier_point(row, df, eigvec, target):
+
+    scores = []
+    df_to_test = df.copy()
+    ten_percent = int(len(df)*0.1)
+
+
+    pointlist = list(repeat(row.tolist(), ten_percent))
+    df_point = pd.DataFrame(data=pointlist, columns=df.columns)
+    df_to_test = pd.concat([df_to_test, df_point])
+
+    new_eigvec = pca_vector(df_to_test, target)
+    # TODO - this is the real one
+    outlier_score = calculate_outlier_score(eigvec, new_eigvec)
+    # outlier_score = angle_between(eigvec, new_eigvec)
+
+    scores.append([outlier_score, row[target]])
+    # print "score: %s, class: %s" % (outlier_score, point[target])
     print outlier_score
     return outlier_score
 
@@ -189,13 +209,13 @@ if __name__ == "__main__":
     #                  header=None,
     #                  sep=',', nrows=50000)
 
-    df = pd.read_csv(filepath_or_buffer='data/kddcup5000.csv',
+    df = pd.read_csv(filepath_or_buffer='data/kddcup50000.csv',
                      header=None,
-                     sep=',')
+                     sep=',', nrows=50000)
     #
     # df.to_csv("kddcup50000.csv")
 
-    print len(df)
+
 
     # read in the first 5000 lines
     # df = pd.read_csv(filepath_or_buffer='data/kddcup5000.csv',
@@ -208,10 +228,11 @@ if __name__ == "__main__":
     df.dropna(how="all", inplace=True)  # drops the empty line at file-end
 
     train_size = int(len(df) * 0.1)
-    df_train = df.drop(df.index[[0, train_size]])
-    df_test = df.drop(df.index[-train_size])
-    # print df_test
-    # print df_test
+    print train_size
+    df_train = df[:train_size]
+    print len(df_train)
+    df_test = df[:-train_size]
+    print len(df_test)
 
 
     # in this instance, there are no headers so grab the last column as class
@@ -225,8 +246,8 @@ if __name__ == "__main__":
     df_train = df_train[df_train[target] == target_normal]
 
 
-    # categorize by protocol type and get the clusters and their eigvectors
-    clusters, eigvecs = categorize_data(df_train, continuous, symbolic, categorizedby)
+    # categorize by protocol type and get the clusters and their eigvectors and a list of outlier scores
+    clusters, eigvecs, outliers = categorize_data(df_train, continuous, symbolic, categorizedby)
 
     outlier_scores = pd.DataFrame()
 
@@ -247,12 +268,21 @@ if __name__ == "__main__":
         df_tests[cat] = df_test[df_test[categorizedby] == cat]
         df_tests[cat].drop(symbolic, axis=1, inplace=True)
 
-        df_tests[cat]['outlier_score'] = df_tests[cat].apply((lambda x: check_point(x,clusters[cat], eigvecs[cat], target)), axis=1)
+        # calculate the normal mean and sd
+        if cat in outliers:
+            normal_mean, normal_sd = calculate_thredshold(outliers[cat])
+        else:
+            continue
+
+        print "%s %s %s %s %s %s" % (cat, len(clusters[cat]), eigvecs[cat], target, normal_mean, normal_sd)
+
+        df_tests[cat]['outlier_score'], df_tests[cat]['outlier_class'] = zip(*df_tests[cat].apply(
+            (lambda x: check_point(x, clusters[cat], eigvecs[cat], target, normal_mean, normal_sd)), axis=1))
 
 
         # print out some results to a csv
         # print df_tests[cat]
-        csvname = "kdd_outlier_scores_%s" % cat
+        csvname = "kdd_outlier_scores_%s.csv" % cat
         df_tests[cat].to_csv(csvname)
 
         #testing the results
@@ -263,24 +293,22 @@ if __name__ == "__main__":
         print "%s normal difference in dot product mean: %s" % (cat, (df_normal["outlier_score"].mean()))
         print "%s outlier difference in dot product mean: %s" % (cat, (df_outlier["outlier_score"].mean()))
 
-    # for key,val in clusters.items():
-    #     outlier_scores = pd.concat([outlier_scores, check_points(val, eigvecs[key], target)])
+    # now find accuracy
+    for cat in df_test[categorizedby].unique():
+        df_correct_outlier = df_tests[cat][(df_tests[cat][target] != target_normal) & (df_tests[cat]["outlier_class"] == True)]
+        df_missed_normal = df_tests[cat][(df_tests[cat][target] == target_normal) & (df_tests[cat]["outlier_class"] == True)]
+        df_missed_outlier = df_tests[cat][(df_tests[cat][target] != target_normal) & (df_tests[cat]["outlier_class"] != True)]
+        df_correct_normal = df_tests[cat][(df_tests[cat][target] == target_normal) & (df_tests[cat]["outlier_class"] != True)]
 
-    # a way to print these and read them
-    # outlier_scores.to_csv("output.csv")
-    #
-    # outlier_scores_normal = outlier_scores[outlier_scores[1] == "normal."]
-    # outlier_scores_outlier = outlier_scores[outlier_scores[1] != "normal."]
-    #
-    # print "normal %s" % outlier_scores_normal[0].mean()
-    # print "outliers %s" % outlier_scores_outlier[0].mean()
+        num_outliers = float(len(df_tests[cat][df_tests[cat][target] != target_normal][target].tolist()))
+        num_normals = float(len(df_tests[cat][df_tests[cat][target] == target_normal][target].tolist()))
 
-    # eigvec2 = pca_vector(df_extra, target)
-    # print eigvec2
-    #
-    # angle =  angle_between(eigvec, eigvec2)
-    # print angle
-    # print np.rad2deg(angle)
+
+        print "%s correct id'd outliers: %s" % (cat, float(len(df_correct_outlier))/num_outliers)
+        print "%s false positive outliers: %s" % (cat, float(len(df_missed_normal))/num_normals)
+        print "%s missed outliers: %s" % (cat, float(len(df_missed_outlier))/num_outliers)
+        print "%s correct id'd normals: %s" % (cat, float(len(df_correct_normal))/num_normals)
+
     
     
         
