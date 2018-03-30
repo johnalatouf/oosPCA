@@ -5,7 +5,6 @@ import pandas as pd
 import numpy as np
 import sys
 from sklearn.preprocessing import StandardScaler
-from imblearn.ensemble import EasyEnsemble
 import names_to_col
 from itertools import repeat
 
@@ -98,13 +97,14 @@ def calculate_thredshold(array, point):
     return boolean outlier as true or false 
     """
     outlier = None
-    elements = numpy.array(array)
+    elements = np.array(array)
 
-    mean = numpy.mean(elements, axis=0)
-    sd = numpy.std(elements, axis=0)
+    mean = np.mean(elements, axis=0)
+    sd = np.std(elements, axis=0)
 
-    if (x < mean - 2 * sd) or (x > mean + 2 * sd) :
+    if (point < mean - 2 * sd) or (point > mean + 2 * sd) :
         outlier = True
+    #print (outlier)
     return outlier
 
 # pick out the groups to test based on symbolic data
