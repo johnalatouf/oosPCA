@@ -209,7 +209,13 @@ if __name__ == "__main__":
     #                  header=None,
     #                  sep=',', nrows=50000)
 
-    df = pd.read_csv(filepath_or_buffer='data/kddcup50000.csv',
+    #   TODO
+    ## UNCOMMENT BEFORE PASSING IN ##
+    #print "Data files are assumed to be in \'./data/\' folder"
+    #fname = raw_input("Name of data file: ")
+    #datapath = 'data/'+fname
+    datapath = 'data/kddcup5000.csv'
+    df = pd.read_csv(filepath_or_buffer=datapath,
                      header=None,
                      sep=',', nrows=50000)
     #
@@ -223,9 +229,13 @@ if __name__ == "__main__":
     #                  sep=',')
 
 
-    #add the headers so it is easier to work with
-    df.columns, continuous, symbolic = names_to_col.make_col("data/kddcup.names")
-    df.dropna(how="all", inplace=True)  # drops the empty line at file-end
+    #TODO uncomment before passing in
+    #namefile = raw_input("What is the data column name file (\'i\' to ignore): ")
+    namefile = 'data/kddcup.names'
+    if namefile != 'i':
+        #add the headers so it is easier to work with
+        df.columns, continuous, symbolic = names_to_col.make_col(namefile)
+        df.dropna(how="all", inplace=True)  # drops the empty line at file-end
 
     train_size = int(len(df) * 0.1)
     print train_size
@@ -239,7 +249,6 @@ if __name__ == "__main__":
     target = "class"
     target_normal = "normal."
     categorizedby = "protocol_type"
-
 
 
     # drop outliers from the training data
