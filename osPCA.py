@@ -126,7 +126,7 @@ def categorize_data(df, continuous_headers, symbolic_headers, categorize_by):
     dataframes = {}
     eig_vecs = {}
     outlier_scores = {}
-    for category in  df[categorize_by].unique():
+    for category in df[categorize_by].unique():
         df_cat = df[df[categorize_by] == category]              # only use this value in category
         # TODO - I believe we can keep binary symbolic headers, but I'm not sure how to handle them yet
         df_cat.drop(symbolic_headers, axis=1, inplace=True)     # drop symbolic headers
@@ -188,6 +188,52 @@ def outlier_point(row, df, eigvec, target):
     # print "score: %s, class: %s" % (outlier_score, point[target])
     print outlier_score
     return outlier_score
+
+
+  ####################################
+ ###    TEST WITH ONLINE        #####
+###################################
+
+#The following methods are for running the algorithm online. 
+#I believe they exploit the similarity of the PCA algorithm with
+#the computation of least squares to simplify and speed up computation 
+#of new eigenvectors calculated from oversampling. 
+#These functions, if ever tied into main program, should go somewhere between
+#the calculation of the primary eigenvector and result output. That is, I think the 
+#flow should be:
+# [Get primary eigenvector with train data] -> [calculate global mean/s.d.]
+# -> [find global values xproj and y using startonline] -> 
+# [feed in test points one at a time to runonline, and use function to compute new eigenvector in-place]
+# -> [compare new eigenvector with standard] -> [get results]
+
+
+def startonline(domev, gmean, dat):
+    #compute the xbar_proj and y needed for runonline function
+    #domev: dominant eigenvectors
+    #gmean: global mean
+
+    xproj = 0
+    y = 0
+
+    for index, row in dat.iterrows():
+        yj = transpose(domev)*(row[t] - gmean)
+        xproj = yj*(dat[t] - gmean)
+
+        y += yj**2
+
+    return xproj, y
+
+def runonline(xproj, y):
+    #Input:
+        #U: matrix of k dominant eigenvectors [principal dir]
+        #x_i: data points
+        #y: 
+    #xbar_i = x_i - mean
+    #xbar_p: target data instance? 
+    #beta = 1/(n*r) [is weighting factor]
+        #
+
+    return
 
 
 def testingrow(row, df):
