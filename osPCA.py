@@ -11,11 +11,11 @@ import time
 
 pd.options.mode.chained_assignment = None  # clears up a false-positive warning with pandas
 
-# reads the file specified by path and returns dataframe
-def read_data_file(path):
-    fullpath = "./%s" % path
-    csv = pd.read_csv(fullpath, delim_whitespace=True, nrows=1000)
-    return csv
+# # reads the file specified by path and returns dataframe
+# def read_data_file(path):
+#     fullpath = "./%s" % path
+#     csv = pd.read_csv(fullpath, nrows=1000)
+#     return csv
 
 # do the pca algorithm to get the dominant vector
 # borrowed from the tutorial
@@ -25,7 +25,8 @@ def pca_vector(df, target):
     df_data = df.drop(target, axis=1)
 
     x = df_data.values
-    y = df[target].values
+    if target in df:
+        y = df[target].values
     X_std = StandardScaler().fit_transform(x)
 
     # get the covariance matrix
@@ -127,7 +128,6 @@ def un_categorize_data(df, symbolic_headers):
 # test the outlier score against the normal mean and sd scores to detect outlier
 # returns outlier score and outlier true/false
 def check_point(row, df, eigvec, target, normal_mean, normal_sd):
-    # print(time.time(), time.clock())
     scores = []
     df_to_test = df.copy()
     ten_percent = int(len(df)*0.1)
@@ -141,8 +141,6 @@ def check_point(row, df, eigvec, target, normal_mean, normal_sd):
 
     scores.append([outlier_score, row[target]])
     outlier_classification = check_threshold(normal_mean, normal_sd, outlier_score)
-    # print(time.time(), time.clock())
-    # print "score: %s, classification: %s" % (outlier_score, outlier_classification)
     return outlier_score, outlier_classification
 
 # duplicate point by 10%, add to the cluster, check the eigenvalue for outlier score
@@ -158,12 +156,9 @@ def outlier_point(row, df, eigvec, target):
     df_to_test = pd.concat([df_to_test, df_point])
 
     new_eigvec = pca_vector(df_to_test, target)
-    # TODO - this is the real one
     outlier_score = calculate_outlier_score(eigvec, new_eigvec)
-    # outlier_score = angle_between(eigvec, new_eigvec)
 
     scores.append([outlier_score, row[target]])
-    # print outlier_score
     return outlier_score
 
 
@@ -268,8 +263,10 @@ if __name__ == "__main__":
         namefile = raw_input("\nPlease enter a .names file (eg: data/kddcup.names) or (\'i\' to ignore): ")
         if namefile == "quit":
             sys.exit(0)
+        if namefile == "i":
+            break;
         try:
-            open(datapath, 'r')
+            open(namefile, 'r')
             break;
         except IOError:
             print("\nCan't open the file.")
@@ -286,7 +283,6 @@ if __name__ == "__main__":
                          header=None,
                          sep=',')
         # add the headers so it is easier to work with
-        df.columns, continuous, symbolic = names_to_col.make_col(namefile)
         try:
             df.columns, continuous, symbolic = names_to_col.make_col(namefile)
         except ValueError:
@@ -297,10 +293,31 @@ if __name__ == "__main__":
         # read the data file w/ headers
         df = pd.read_csv(filepath_or_buffer=datapath, sep=',')
         df_num = df.select_dtypes(include=[np.number])
-        df_string = df.select_dtypes(exclue=[np.number])
-        continuous = df_num.columns()
-        symbolic = df_string
-        # TODO - ask for the target in this case
+        df_string = df.select_dtypes(exclude=[np.number])
+        continuous = df_num.columns.tolist()
+        symbolic = df_string.columns.tolist()
+
+        # asking for target
+        count = 1
+        for t in symbolic:
+            print "\t%s. %s" % (count, t)
+            count += 1
+        target_int = -1
+        while True:
+            target_int = raw_input(
+                "Please select your target classification by number (eg: 1): ")
+            if target_int == "quit":
+                sys.exit(0)
+            if target_int.isdigit() and int(target_int) <= len(symbolic) and int(target_int) > 0:
+                categorized_data = True
+                break
+            else:
+                print "You must select a valid digit"
+                continue
+        if categorized_data:
+            target = symbolic[int(target_int) - 1]
+            symbolic.pop(int(target_int) - 1)
+
 
     # ask for the "normal" or inlier value from thet arget
     vals = potentialNormals(df, target)
@@ -400,7 +417,7 @@ if __name__ == "__main__":
             else:
                 continue
 
-            print "%s %s %s %s %s %s" % (cat, len(clusters[cat]), eigvecs[cat], target, normal_mean, normal_sd)
+            # print "%s %s %s %s %s %s" % (cat, len(clusters[cat]), eigvecs[cat], target, normal_mean, normal_sd)
 
             df_tests[cat]['outlier_score'], df_tests[cat]['outlier_class'] = zip(*df_tests[cat].apply(
                 (lambda x: check_point(x, clusters[cat], eigvecs[cat], target, normal_mean, normal_sd)), axis=1))
@@ -409,15 +426,11 @@ if __name__ == "__main__":
             # print out some results to a csv
             # print df_tests[cat]
             csvname = "results_%s.csv" % cat
-            # df_tests[cat].to_csv(csvname)
+            df_tests[cat].to_csv(csvname)
 
             #testing the results
             df_outlier = df_tests[cat][df_tests[cat][target] != target_normal]
             df_normal = df_tests[cat][df_tests[cat][target] == target_normal]
-            print len(df_normal)
-            print len (df_outlier)
-            print "%s normal difference in dot product mean: %s" % (cat, (df_normal["outlier_score"].mean()))
-            print "%s outlier difference in dot product mean: %s" % (cat, (df_outlier["outlier_score"].mean()))
     else:
         cat = "all"
         df_tests[cat] = df_test.copy()
@@ -427,7 +440,7 @@ if __name__ == "__main__":
         normal_mean, normal_sd = calculate_thredshold(outliers[cat])
 
 
-        print "%s %s %s %s %s %s" % (cat, len(clusters[cat]), eigvecs[cat], target, normal_mean, normal_sd)
+        # print "%s %s %s %s %s %s" % (cat, len(clusters[cat]), eigvecs[cat], target, normal_mean, normal_sd)
 
         df_tests[cat]['outlier_score'], df_tests[cat]['outlier_class'] = zip(*df_tests[cat].apply(
             (lambda x: check_point(x, clusters[cat], eigvecs[cat], target, normal_mean, normal_sd)), axis=1))
@@ -435,15 +448,11 @@ if __name__ == "__main__":
         # print out some results to a csv
         # print df_tests[cat]
         csvname = "results_%s.csv" % cat
-        # df_tests[cat].to_csv(csvname)
+        df_tests[cat].to_csv(csvname)
 
         # testing the results
         df_outlier = df_tests[cat][df_tests[cat][target] != target_normal]
         df_normal = df_tests[cat][df_tests[cat][target] == target_normal]
-        print len(df_normal)
-        print len(df_outlier)
-        print "%s normal difference in dot product mean: %s" % (cat, (df_normal["outlier_score"].mean()))
-        print "%s outlier difference in dot product mean: %s" % (cat, (df_outlier["outlier_score"].mean()))
 
     # now find accuracy
     if categorized_data:
@@ -456,11 +465,14 @@ if __name__ == "__main__":
             num_outliers = float(len(df_tests[cat][df_tests[cat][target] != target_normal][target].tolist()))
             num_normals = float(len(df_tests[cat][df_tests[cat][target] == target_normal][target].tolist()))
 
-
-            print "%s correct id'd outliers: %s" % (cat, float(len(df_correct_outlier))/num_outliers)
-            print "%s false positive outliers: %s" % (cat, float(len(df_missed_normal))/num_normals)
-            print "%s missed outliers: %s" % (cat, float(len(df_missed_outlier))/num_outliers)
-            print "%s correct id'd normals: %s" % (cat, float(len(df_correct_normal))/num_normals)
+            if num_outliers > 0:
+                print "%s correct id'd outliers: %s" % (cat, float(len(df_correct_outlier)) / num_outliers)
+            if num_normals > 0:
+                print "%s false positive outliers: %s" % (cat, float(len(df_missed_normal)) / num_normals)
+            if num_outliers > 0:
+                print "%s missed outliers: %s" % (cat, float(len(df_missed_outlier)) / num_outliers)
+            if num_normals > 0:
+                print "%s correct id'd normals: %s" % (cat, float(len(df_correct_normal)) / num_normals)
     else:
         cat = "all"
         df_correct_outlier = df_tests[cat][
@@ -475,10 +487,14 @@ if __name__ == "__main__":
         num_outliers = float(len(df_tests[cat][df_tests[cat][target] != target_normal][target].tolist()))
         num_normals = float(len(df_tests[cat][df_tests[cat][target] == target_normal][target].tolist()))
 
-        print "%s correct id'd outliers: %s" % (cat, float(len(df_correct_outlier)) / num_outliers)
-        print "%s false positive outliers: %s" % (cat, float(len(df_missed_normal)) / num_normals)
-        print "%s missed outliers: %s" % (cat, float(len(df_missed_outlier)) / num_outliers)
-        print "%s correct id'd normals: %s" % (cat, float(len(df_correct_normal)) / num_normals)
+        if num_outliers > 0:
+            print "%s correct id'd outliers: %s" % (cat, float(len(df_correct_outlier)) / num_outliers)
+        if num_normals > 0:
+            print "%s false positive outliers: %s" % (cat, float(len(df_missed_normal)) / num_normals)
+        if num_outliers > 0:
+            print "%s missed outliers: %s" % (cat, float(len(df_missed_outlier)) / num_outliers)
+        if num_normals > 0:
+            print "%s correct id'd normals: %s" % (cat, float(len(df_correct_normal)) / num_normals)
 
     
     

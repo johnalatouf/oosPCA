@@ -1,0 +1,11 @@
+2-normal, 4-anomoly odds.cs.stonybrook.edu/forestcovercovertype-dataset/
+Elevation: continuous.
+Aspect: continuous.
+Slope: continuous.
+Horizontal_Distance_To_Hydrology: continuous.
+Vertical_Distance_To_Hydrology: continuous.
+Horizontal_Distance_To_Roadways: continuous.
+Hillshade_9am: continuous.
+Hillshade_Noon: continuous.
+Hillshade_3pm: continuous.
+Horizontal_Distance_To_Fire_Points: continuous.

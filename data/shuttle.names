@@ -1,4 +1,4 @@
-1:Rad Flow, 2:Fpv Close,3:Fpv Open,4:High,5:Bypass,6:Bpv Close,7:Bpv Open
+1-Rad Flow, 2-Fpv Close,3-Fpv Open,4-High,5-Bypass,6-Bpv Close,7-Bpv Open
 a: continuous.
 b: continuous.
 c: continuous.
@@ -7,3 +7,4 @@ e: continuous.
 f: continuous.
 g: continuous.
 h: continuous.
+i: continuous.
